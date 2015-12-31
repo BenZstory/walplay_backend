@@ -1,0 +1,1 @@
+SQLALCHEMY_DATABASE_URI = "mysql://root:6668sql@localhost/testDB"
