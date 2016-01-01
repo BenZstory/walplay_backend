@@ -2,12 +2,11 @@ import sys
 from flask import Flask
 from flask.ext.script import Manager, Shell
 from app import app
-from app.database import init_db
+from app.models import init_db
 
 
 reload(sys)
 sys.setdefaultencoding('utf-8')
-
 manager = Manager(app)
 
 

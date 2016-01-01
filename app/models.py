@@ -1,85 +1,95 @@
-from sqlalchemy import Column, Integer, String, ForeignKey
-from sqlalchemy.orm import query,session
-from database import Base, db_session
+from flask import Flask
+from flask_sqlalchemy import SQLAlchemy
+from . import app
 from itsdangerous import (TimedJSONWebSignatureSerializer as Serializer, BadSignature, SignatureExpired)
 
-secret_key = "BenZ_Key"
 
-class Role(Base):
-    __tablename__ = 'role'
-
-    id = Column(Integer, primary_key=True)
-    name = Column(String(80), unique=True)
-    description = Column(String(255))
+db = SQLAlchemy(app)
+my_secret_key = "BenZ_Key"
 
 
-class UserInfo(Base):
-    __tablename__ = 'userInfo'
+class Role(db.Model):
+    role_id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(20), unique=True)
+    description = db.Column(db.String(255))
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    username = Column(String(50), unique=True)
-    password = Column(String(120))
-    email = Column(String(120), unique=True)
-    cell = Column(String(20))
-    role_id = Column(Integer, ForeignKey('role.id')),
+    def __init__(self, role_id, name="default", description=None):
+        self.role_id = role_id
+        self.name = name
+        self.description = description
 
-    def __init__(self, username=None, password=None, email=None, cell=None):
-        self.username = username
+
+class UserInfo(db.Model):
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    cell = db.Column(db.String(20), unique=True)
+    username = db.Column(db.String(80), unique=True)
+    password = db.Column(db.String(120))
+    email = db.Column(db.String(120), unique=True)
+    token = db.Column(db.String(120))
+    role_id = db.Column(db.Integer, db.ForeignKey('role.role_id'))
+
+    def __init__(self, cell, password, email=None, role_id=1, username=None, token=None):
+        self.cell = cell
         self.password = password
         self.email = email
-        self.cell = cell
+        self.role_id = role_id
+        self.username = username
+        self.token = token
 
     def __repr__(self):
-        return '&s (%r, %r)' % (self.__class__.__name__, self.name, self.email)
+        return '<User %r>' % self.cell
 
+    @property
     def is_authenticated(self):
         return True
 
-    def is_activate(self):
+    @property
+    def is_active(self):
         return True
 
+    @property
     def is_anonymous(self):
         return False
 
     def get_id(self):
         return unicode(self.id)
 
-    def get_auth_token(self):
-        return self.cell   #TODO a better token
-
-    def generate_auth_token(self, expiration=2592000):
-        s = Serializer(secret_key, expires_in=expiration)
-        return s.dumps({'id': self.id})
-
     @staticmethod
     def get_with_cell(cell):
-        user = UserInfo.query.get(UserInfo.cell == cell)
+        user = UserInfo.query.filter(UserInfo.cell == cell).first()
+        return user
+
+    @staticmethod
+    def get_with_id(user_id):
+        user = UserInfo.query.get(UserInfo.id == user_id).first()
         return user
 
     @staticmethod
     def get_with_token(token):
-        s = Serializer(secret_key)
+        s = Serializer(secret_key=my_secret_key)
         try:
             data = s.loads(token)
         except SignatureExpired:
             return None
         except BadSignature:
             return None
-        q = session.query(UserInfo)
         user = UserInfo.query.get(data['id'])
         return user
 
-    def get(self):
-        return unicode(self.id)
-'''
-TokenList = (("1", "13122386668"),
-             ("2", "13122386669")
-             )
-'''
+    def get_auth_token(self, expiration=2592000):
+        '''
+        return a token encryped with id
+        :return:
+        '''
+        s = Serializer(secret_key=my_secret_key, expires_in=expiration)
+        t = s.dumps({'id': self.id})
+        self.token = t
+        return t
 
 
-
-
-
-
+def init_db():
+    db.create_all()
+    role = Role(1)
+    db.session.add(role)
+    db.session.commit()
 
