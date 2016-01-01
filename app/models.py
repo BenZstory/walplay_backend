@@ -1,7 +1,9 @@
 from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy.orm import query,session
 from database import Base, db_session
 from itsdangerous import (TimedJSONWebSignatureSerializer as Serializer, BadSignature, SignatureExpired)
 
+secret_key = "BenZ_Key"
 
 class Role(Base):
     __tablename__ = 'role'
@@ -46,25 +48,34 @@ class UserInfo(Base):
         return self.cell   #TODO a better token
 
     def generate_auth_token(self, expiration=2592000):
-        s = Serializer(app.config['BenZ_Key'], expires_in=expiration)
+        s = Serializer(secret_key, expires_in=expiration)
         return s.dumps({'id': self.id})
 
     @staticmethod
+    def get_with_cell(cell):
+        user = UserInfo.query.get(UserInfo.cell == cell)
+        return user
+
+    @staticmethod
     def get_with_token(token):
-        s = Serializer(app.config['BenZ_Key'])
+        s = Serializer(secret_key)
         try:
             data = s.loads(token)
         except SignatureExpired:
             return None
         except BadSignature:
             return None
+        q = session.query(UserInfo)
         user = UserInfo.query.get(data['id'])
         return user
 
+    def get(self):
+        return unicode(self.id)
+'''
 TokenList = (("1", "13122386668"),
              ("2", "13122386669")
              )
-
+'''
 
 
 
