@@ -1,11 +1,10 @@
 from . import app, login_manager
-from flask import Flask, request, jsonify, flash
-from models import UserInfo, Role, init_db, db
-from flask_sqlalchemy import SQLAlchemy
-from flask import logging
-from flask_login import login_user, login_required, LoginManager, flash, logout_user, make_secure_token, current_user
-from itsdangerous import (TimedJSONWebSignatureSerializer as Serializer, BadSignature, SignatureExpired)
+from flask import Flask, request, jsonify
+from models import UserInfo, db, SpotInfo, AudioInfo
+from flask_login import login_user, login_required, logout_user, make_secure_token, current_user
+# from itsdangerous import (TimedJSONWebSignatureSerializer as Serializer, BadSignature, SignatureExpired)
 import json
+import time
 
 
 @login_manager.user_loader
@@ -29,9 +28,9 @@ def register():
         if result is None:
             u = UserInfo(cell=cell, password=pwd)
             response = {"code": 0}
-            token = u.get_auth_token()
             db.session.add(u)
             db.session.commit()
+            token = u.get_auth_token()
             return "token: "+token #TODO return code+token
         else:
             response = {"code": 1}
@@ -42,14 +41,22 @@ def register():
 
 @app.route('/login', methods=["GET", "POST"])
 def login():
+    if 'Authorization' in request.headers:
+        user = UserInfo.get_with_token(request.headers['Authorization'])
+        if user is not None:
+            login_user(user)
+            return "User: "+user.cell+"  successfully logged in by token"
     try:
-        jsonData = json.dumps(request.json)
-        data = json.loads(jsonData)
+        json_data = json.dumps(request.json)
+        data = json.loads(json_data)
         cell = data['cell']
         pwd = data['password']
         user = UserInfo.get_with_cell(cell=cell)
-        login_user(user, remember=False)
-        return "User: "+user.cell+"  successfully logged in"
+        if (user is not None) and (user.password == pwd):
+            login_user(user, remember=False)
+            return "User: "+user.cell+"  successfully logged in by pwd"
+        else:
+            return 'Wrong username or pwd!'
     except (KeyError, TypeError, ValueError):
         return "json error!"
 
@@ -61,10 +68,36 @@ def logout():
     return 'Logged out'
 
 
+@appp.route("/add_spot", methods=["POST"])
+@login_required
+def add_spot():
+    try:
+        json_data = json.dumps(request.json)
+        data = json.load(json_data)
+        latitude = data['latitude']
+        longitude = data['longitude']
+        radius = data['radius']
+        title = data['title']           #use user's preferences in the future
+        create_time = data['time']
+        if create_time is None:
+            create_time = time.strftime('%Y-%m-%d', time.localtime(time.time()))
+        user_id = current_user
+
+        spot = SpotInfo(user_id=user_id, latitue=latitude, longitude=longitude,
+                        radius=radius, time=create_time, title=title)
+
+        db.session.add(spot)
+        db.session.commit()
+
+        return spot.__repr__()
+    except (KeyError, TypeError, ValueError):
+        return "json error!"
+
+
 @app.route('/testLogin', methods=["GET", "POST"])
 @login_required
 def test_login():
-    return current_user.cell
+    return current_user.id
 
 
 @app.route('/', methods=["POST", "GET"])
