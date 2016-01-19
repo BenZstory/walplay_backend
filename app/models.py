@@ -87,8 +87,8 @@ class UserInfo(db.Model):
         return t
 
 
-class MyReal(db.Model):
-    scale = 10
+# class MyReal(db.REAL):
+#     scale = 10
 
 
 class SpotInfo(db.Model):
@@ -96,18 +96,18 @@ class SpotInfo(db.Model):
     user_id = db.Column(db.Integer)  #db.ForeignKey('user_info.id')
     resource_id = db.Column(db.Integer)  #db.ForeignKey('audio_info.id')
     create_time = db.Column(db.DateTime)
-    latitude = db.Column(MyReal)
-    longitude = db.Column(MyReal)
-    radius = db.Column(MyReal)
+    latitude = db.Column(db.String(20))
+    longitude = db.Column(db.String(20))
+    radius = db.Column(db.String(20))
     spot_type = db.Column(db.Integer)
     next_point = db.Column(db.Integer)
     title = db.Column(db.String(120))
 
-    def __init__(self, user_id, latitue, longitude, radius, resource=0, time=None,  spot_type=1, next_point=0, title=None):
+    def __init__(self, user_id, latitude, longitude, radius, resource=0, time=None,  spot_type=1, next_point=0, title=None):
         self.user_id = user_id
         self.resource = resource
         self.create_time = time
-        self.latitude = latitue
+        self.latitude = latitude
         self.longitude = longitude
         self.radius = radius
         self.spot_type = spot_type
@@ -119,6 +119,7 @@ class SpotInfo(db.Model):
 
 
 class Resource(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
     resource_id = db.Column(db.Integer)
     resource_type = db.Column(db.Integer)   #db.ForeignKey('RType.id')
     detail_id = db.Column(db.Integer)
