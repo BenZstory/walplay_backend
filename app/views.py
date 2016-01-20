@@ -2,9 +2,12 @@ from . import app, login_manager
 from flask import Flask, request, jsonify
 from models import UserInfo, db, SpotInfo, AudioInfo
 from flask_login import login_user, login_required, logout_user, make_secure_token, current_user
-# from itsdangerous import (TimedJSONWebSignatureSerializer as Serializer, BadSignature, SignatureExpired)
+from itsdangerous import (TimedJSONWebSignatureSerializer as Serializer, BadSignature, SignatureExpired)
 import json
 import time
+
+
+my_secret_key = "BenZ_Key"
 
 
 @login_manager.user_loader
@@ -25,9 +28,9 @@ def register():
         result = UserInfo.query.filter(UserInfo.cell == cell).first()
         if result is None:
             u = UserInfo(cell=cell, password=pwd)
-            token = u.get_auth_token()
             db.session.add(u)
             db.session.commit()
+            token = u.get_auth_token()
             response = {}
             response['code'] = 0
             response['token'] = token
@@ -72,7 +75,7 @@ def login():
             return json.dumps(response)
 
     except (KeyError, TypeError, ValueError):
-        response = {'code': -1}
+        response = {'code': -2}
         return json.dumps(response)
 
 
@@ -87,16 +90,16 @@ def logout():
 @login_required
 def add_spot():
     try:
-        json_data = json.dumps(request.json)
-        data = json.load(json_data)
-        latitude = data['latitude']
-        longitude = data['longitude']
-        radius = data['radius']
-        title = data['title']           #use user's preferences in the future
-        create_time = data['time']
-        if create_time is None:
-            create_time = time.strftime('%Y-%m-%d', time.localtime(time.time()))
-        user_id = current_user
+        latitude = request.json['latitude']
+        longitude = request.json['longitude']
+        radius = request.json['radius']
+        title = request.json['title']
+        create_time = request.json['time']
+
+        if create_time == "":
+            create_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
+        # create_time = time.strftime('%Y-%m-%d', time.localtime(time.time()))
+        user_id = current_user.id
 
         spot = SpotInfo(user_id=user_id, latitude=latitude, longitude=longitude,
                         radius=radius, time=create_time, title=title)
@@ -104,15 +107,24 @@ def add_spot():
         db.session.add(spot)
         db.session.commit()
 
-        return spot.__repr__()
+        response={}
+        response['code'] = 0
+        response['spot_id'] = spot.id
+        return json.dumps(response)
+
     except (KeyError, TypeError, ValueError):
-        return "json error!"
+        response={}
+        response['code'] = -1
+
+        return json.dumps(response)
 
 
 @app.route('/testLogin', methods=["GET", "POST"])
-@login_required
 def test_login():
-    return current_user.__repr__()
+    token = request.headers['Authorization']
+    s = Serializer(secret_key=my_secret_key)
+    data = s.loads(token)
+    return str(current_user.id)
 
 
 @app.route('/', methods=["POST", "GET"])

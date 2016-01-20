@@ -84,6 +84,7 @@ class UserInfo(db.Model):
         s = Serializer(secret_key=my_secret_key, expires_in=expiration)
         t = s.dumps({'id': self.id})
         self.token = t
+        db.session.commit()
         return t
 
 
