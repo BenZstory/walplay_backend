@@ -1,101 +1,135 @@
 from . import app, login_manager
-from flask import Flask, request, jsonify, flash
-from models import UserInfo, Role
-from database import db_session, init_db
-from sqlalchemy import *
-from sqlalchemy.orm import *
-from sqlalchemy.ext.declarative import declarative_base
-from flask_login import login_user, login_required, LoginManager, flash, logout_user, make_secure_token
+from flask import Flask, request, jsonify
+from models import UserInfo, db, SpotInfo, AudioInfo
+from flask_login import login_user, login_required, logout_user, make_secure_token, current_user
 from itsdangerous import (TimedJSONWebSignatureSerializer as Serializer, BadSignature, SignatureExpired)
 import json
+import time
 
 
-@app.teardown_request
-def shutdown_session(exception=None):
-    db_session.remove()
+my_secret_key = "BenZ_Key"
 
 
 @login_manager.user_loader
-def load_user(userid):
-    return UserInfo.get(userid)
-
-# @login_manager.request_loader
-# def load_user_from_request(request):
+def load_user(user_id):
+    return UserInfo.query.get(int(user_id))
 
 
 @login_manager.token_loader
 def load_token(token):
-    print("get token")
-    # user = UserInfo.get_with_token(token)
-    # if not user:
-    #     return None
-    user = UserInfo()
-    return user
+    return UserInfo.query.filter(UserInfo.token == token)
 
 
 @app.route('/register', methods=["POST"])
 def register():
-    '''
     try:
-        jsonData = json.dumps(request.json)
-        data = json.loads(jsonData)
-        cell = data['cell']
-        pwd = data['password']
-        session = db_session()
-        result = session.query(UserInfo).filter(UserInfo.cell == cell).first()
+        cell = request.json['cell']
+        pwd = request.json['password']
+        result = UserInfo.query.filter(UserInfo.cell == cell).first()
         if result is None:
             u = UserInfo(cell=cell, password=pwd)
-            db_session.add(u)
-            db_session.commit()
-            response = '{"code":0}'
-            token = u.generate_auth_token()
-            return jsonify(token) #TODO return code+token
-            # return "Successfully registered!"
+            db.session.add(u)
+            db.session.commit()
+            token = u.get_auth_token()
+            response = {}
+            response['code'] = 0
+            response['token'] = token
+            response['cell'] = cell
+            return json.dumps(response)
+            # return "token: "+token #TODO return code+token
         else:
-            response = '{"code":1}'
-            return jsonify(response)
-            # return "User already exists"
+            response = {}
+            response['code'] = 1
+            response['message'] = request
+            return json.dumps(response)
     except (KeyError, TypeError, ValueError):
-        return "json error!"
-'''
-
-    jsonData = json.dumps(request.json)
-    data = json.loads(jsonData)
-    cell = data['cell']
-    pwd = data['password']
-    session = db_session()
-    result = session.query(UserInfo).filter(UserInfo.cell == cell).first()
-    if result is None:
-        u = UserInfo(cell=cell, password=pwd)
-        db_session.add(u)
-        db_session.commit()
-        response = {"code": 0}
-        token = u.generate_auth_token()
-        return token #TODO return code+token
-        # return "Successfully registered!"
-    else:
-        response = {"code": 1}
-        return jsonify(response)
-        # return "User already exists"
+        response = {"code": -1}
+        return json.dumps(response)
 
 
 @app.route('/login', methods=["GET", "POST"])
 def login():
-    jsonData = json.dumps(request.json)
-    data = json.loads(jsonData)
-    cell = data['cell']
-    pwd = data['password']
-    user = UserInfo.get_with_cell(cell=cell)
-    login_user(user, remember=True)
-    return type(user)
+    if 'Authorization' in request.headers:
+        user = UserInfo.get_with_token(request.headers['Authorization'])
+        if user is not None:
+            login_user(user)
+            response = {}
+            response['code'] = 0
+            response['cell'] = user.cell
+            response['token'] = user.token
+            return json.dumps(response)
+            # return "User: "+user.cell+"  successfully logged in by token"
+    try:
+        cell = request.json['cell']
+        pwd = request.json['password']
+        user = UserInfo.get_with_cell(cell=cell)
+        if (user is not None) and (user.password == pwd):
+            login_user(user, remember=True)
+            response = {}
+            response['code'] = 0
+            response['cell'] = cell
+            response['token'] = user.token
+            return json.dumps(response)
+        else:
+            response = {'code': 1}
+            return json.dumps(response)
+
+    except (KeyError, TypeError, ValueError):
+        response = {'code': -2}
+        return json.dumps(response)
 
 
-@app.route('/testtoken', methods=["GET"])
+@app.route("/logout", methods=["GET", "POST"])
 @login_required
-def testtoken():
-    return "nice"
+def logout():
+    logout_user()
+    return 'Logged out'
+
+
+@app.route("/add_spot", methods=["POST"])
+@login_required
+def add_spot():
+    try:
+        latitude = request.json['latitude']
+        longitude = request.json['longitude']
+        radius = request.json['radius']
+        title = request.json['title']
+        create_time = request.json['time']
+
+        if create_time == "":
+            create_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
+        # create_time = time.strftime('%Y-%m-%d', time.localtime(time.time()))
+        user_id = current_user.id
+
+        spot = SpotInfo(user_id=user_id, latitude=latitude, longitude=longitude,
+                        radius=radius, time=create_time, title=title)
+
+        db.session.add(spot)
+        db.session.commit()
+
+        response={}
+        response['code'] = 0
+        response['spot_id'] = spot.id
+        return json.dumps(response)
+
+    except (KeyError, TypeError, ValueError):
+        response={}
+        response['code'] = -1
+
+        return json.dumps(response)
+
+
+@app.route('/testLogin', methods=["GET", "POST"])
+def test_login():
+    token = request.headers['Authorization']
+    s = Serializer(secret_key=my_secret_key)
+    data = s.loads(token)
+    return str(current_user.id)
 
 
 @app.route('/', methods=["POST", "GET"])
 def home():
-    return 'HI, test successful!'
+    response = {}
+    response['code'] = 0
+    response['message'] = "Hi,test successful!"
+    return json.dumps(response)
