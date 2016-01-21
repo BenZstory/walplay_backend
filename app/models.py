@@ -25,7 +25,7 @@ class UserInfo(db.Model):
     username = db.Column(db.String(80), unique=True)
     password = db.Column(db.String(120))
     email = db.Column(db.String(120), unique=True)
-    token = db.Column(db.String(120))
+    token = db.Column(db.String(255))
     role_id = db.Column(db.Integer, db.ForeignKey('role.role_id'))
 
     def __init__(self, cell, password, email=None, role_id=1, username=None, token=None):
@@ -84,7 +84,62 @@ class UserInfo(db.Model):
         s = Serializer(secret_key=my_secret_key, expires_in=expiration)
         t = s.dumps({'id': self.id})
         self.token = t
+        db.session.commit()
         return t
+
+
+# class MyReal(db.REAL):
+#     scale = 10
+
+
+class SpotInfo(db.Model):
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    user_id = db.Column(db.Integer)  #db.ForeignKey('user_info.id')
+    resource_id = db.Column(db.Integer)  #db.ForeignKey('audio_info.id')
+    create_time = db.Column(db.DateTime)
+    latitude = db.Column(db.String(20))
+    longitude = db.Column(db.String(20))
+    radius = db.Column(db.String(20))
+    spot_type = db.Column(db.Integer)
+    next_point = db.Column(db.Integer)
+    title = db.Column(db.String(120))
+
+    def __init__(self, user_id, latitude, longitude, radius, resource=0, time=None,  spot_type=1, next_point=0, title=None):
+        self.user_id = user_id
+        self.resource = resource
+        self.create_time = time
+        self.latitude = latitude
+        self.longitude = longitude
+        self.radius = radius
+        self.spot_type = spot_type
+        self.next_point = next_point
+        self.title = None
+
+    def __repr__(self):
+        return '<title %r>' % self.title
+
+
+class Resource(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    resource_id = db.Column(db.Integer)
+    resource_type = db.Column(db.Integer)   #db.ForeignKey('RType.id')
+    detail_id = db.Column(db.Integer)
+
+    def __init__(self, resource_id, detail_id, resource_type=1):
+        self.resource_id = resource_id
+        self.detail_id = detail_id
+        self.resource_type = resource_type
+
+    def __repr__(self):
+        return '<source %r>' % self.resource_id
+
+
+class AudioInfo(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    file_dir = db.Column(db.String(255))
+
+    def __init__(self, file_dir):
+        self.file_dir = file_dir
 
 
 def init_db():
@@ -92,4 +147,3 @@ def init_db():
     role = Role(1)
     db.session.add(role)
     db.session.commit()
-
